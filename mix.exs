@@ -9,7 +9,6 @@ defmodule AmpsCore.MixProject do
       app: :amps_core,
       version: "0.1.0",
       elixir: "~> 1.12",
-      aliases: aliases(),
     ]
   end
 
