@@ -18,7 +18,7 @@ defmodule AmpsCore.Application do
 
     Supervisor.start_link(children,
       strategy: :one_for_one,
-      name: Amps.Supervisor
+      name: AmpsCore.Supervisor
     )
   end
 end
