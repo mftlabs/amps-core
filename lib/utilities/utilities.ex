@@ -856,9 +856,9 @@ defmodule AmpsUtil do
       end
 
     path = get_mod_path(env)
-    script_path = Path.join(path, script["name"])
-    File.mkdir_p!(Path.dirname(script_path))
     script = DB.find_one(collection, %{"name" => name})
+    script_path = Path.join(path, script["name"] <> ".py")
+    File.mkdir_p!(Path.dirname(script_path))
 
     File.write(script_path, script["data"])
   end
@@ -903,7 +903,7 @@ defmodule AmpsUtil do
         path = Path.join(modpath, "util")
 
         Enum.each(utils, fn util ->
-          script_path = Path.join(path, util["name"])
+          script_path = Path.join(path, util["name"] <> ".py")
 
           if File.exists?(script_path) do
             :ok
