@@ -847,6 +847,21 @@ defmodule AmpsUtil do
     end
   end
 
+  def update_script(name, env \\ "") do
+    collection =
+      if env != "" do
+        "#{env}-scripts"
+      else
+        "scripts"
+      end
+
+    path = get_mod_path(env)
+    script_path = Path.join(path, script["name"])
+    script = DB.find_one(collection, %{"name" => name})
+
+    File.write(script_path, script["data"])
+  end
+
   def load_system_parms(node \\ nil) do
     parms =
       case Amps.DB.find_one("config", %{"name" => "SYSTEM"}) do
