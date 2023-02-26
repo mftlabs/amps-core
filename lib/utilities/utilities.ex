@@ -857,6 +857,7 @@ defmodule AmpsUtil do
 
     path = get_mod_path(env)
     script_path = Path.join(path, script["name"])
+    File.mkdir_p!(Path.dirname(script_path))
     script = DB.find_one(collection, %{"name" => name})
 
     File.write(script_path, script["data"])
