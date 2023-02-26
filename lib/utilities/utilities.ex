@@ -847,6 +847,57 @@ defmodule AmpsUtil do
     end
   end
 
+  def load_system_parms(node) do
+    parms =
+      case Amps.DB.find_one("config", %{"name" => "SYSTEM"}) do
+        nil ->
+          %{}
+
+        parms ->
+          parms
+      end
+
+    parms =
+      if node do
+        nodeparms = parms["nodes"][node]
+
+        if nodeparms do
+          nodeparms
+        else
+          Map.drop(parms, ["_id", "name", "nodes"])
+        end
+      else
+        Map.drop(parms, ["_id", "name", "nodes"])
+      end
+
+    Enum.each(parms, fn {key, val} ->
+      res = Amps.Defaults.put(key, val)
+      Application.put_env(:amps, String.to_atom(key), val)
+    end)
+  end
+
+  def check_util() do
+    utils = DB.find("utilscripts", %{})
+
+    case get_mod_path() do
+      nil ->
+        :ok
+
+      modpath ->
+        path = Path.join(modpath, "util")
+
+        Enum.each(utils, fn util ->
+          script_path = Path.join(path, util["name"])
+
+          if File.exists?(script_path) do
+            :ok
+          else
+            File.write(script_path, util["data"])
+          end
+        end)
+    end
+  end
+
   def test do
     AmpsUtil.create_consumer(
       "TEST-SERVICES",
