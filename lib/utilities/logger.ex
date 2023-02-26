@@ -1,4 +1,4 @@
-defmodule Amps.Logger do
+defmodule AmpsCore.Logger do
   use GenServer
   @behaviour :gen_event
 
