@@ -19,6 +19,9 @@ defmodule AmpsCore.MixProject do
   end
 
   defp deps do
-    [{:jetstream, git: "https://github.com/aram0112/jetstream"}]
+    [
+      {:jetstream, git: "https://github.com/aram0112/jetstream"},
+      {:mnesiac, git: "https://github.com/aram0112/mnesiac"}
+    ]
   end
 end
