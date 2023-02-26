@@ -847,7 +847,7 @@ defmodule AmpsUtil do
     end
   end
 
-  def load_system_parms(node) do
+  def load_system_parms(node \\ nil) do
     parms =
       case Amps.DB.find_one("config", %{"name" => "SYSTEM"}) do
         nil ->
