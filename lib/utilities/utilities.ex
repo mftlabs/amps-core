@@ -875,15 +875,15 @@ defmodule AmpsUtil do
 
     parms =
       if node do
-        nodeparms = parms["nodes"][node]
+        nodeparms = DB.find_one(nodes, %{"name" => node})
 
         if nodeparms do
-          nodeparms
+          Map.drop(nodeparms, ["_id", "name", "desc"])
         else
-          Map.drop(parms, ["_id", "name", "nodes"])
+          Map.drop(parms, ["_id", "name"])
         end
       else
-        Map.drop(parms, ["_id", "name", "nodes"])
+        Map.drop(parms, ["_id", "name"])
       end
 
     Enum.each(parms, fn {key, val} ->
