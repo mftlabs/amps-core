@@ -8,12 +8,12 @@ defmodule AmpsCore.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {
-        Mnesiac.Supervisor,
-        [
-          [name: Amps.MnesiacSupervisor]
-        ]
-      }
+      # {
+      #   Mnesiac.Supervisor,
+      #   [
+      #     [name: Amps.MnesiacSupervisor]
+      #   ]
+      # }
     ]
 
     Supervisor.start_link(children,
