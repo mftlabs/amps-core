@@ -924,14 +924,14 @@ defmodule AmpsUtil do
       end
     end)
 
-    script = DB.find("scripts", %{})
+    scripts = DB.find("scripts", %{})
 
     case get_mod_path() do
       nil ->
         :ok
 
       path ->
-        Enum.each(scripts, fn scripts ->
+        Enum.each(scripts, fn script ->
           script_path = Path.join(path, script["name"] <> ".py")
           File.write(script_path, script["data"])
         end)
