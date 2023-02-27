@@ -665,6 +665,7 @@ defmodule AmpsUtil do
       if Enum.member?(
            [
              "config",
+             "utilscripts"
              "packages",
              "admin",
              "environments",
@@ -863,6 +864,17 @@ defmodule AmpsUtil do
     File.write(script_path, script["data"])
   end
 
+  def update_util(name, env \\ "") do
+    collection = "utilscripts"
+
+    path = get_mod_path(env)
+    script = DB.find_one(collection, %{"name" => name})
+    script_path = Path.join(path, script["name"] <> ".py")
+    File.mkdir_p!(Path.dirname(script_path))
+
+    File.write(script_path, script["data"])
+  end
+
   def load_system_parms(node \\ nil) do
     parms =
       case Amps.DB.find_one("config", %{"name" => "SYSTEM"}) do
@@ -904,12 +916,7 @@ defmodule AmpsUtil do
 
         Enum.each(utils, fn util ->
           script_path = Path.join(path, util["name"] <> ".py")
-
-          if File.exists?(script_path) do
-            :ok
-          else
-            File.write(script_path, util["data"])
-          end
+          File.write(script_path, util["data"])
         end)
     end
   end
