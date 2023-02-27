@@ -908,7 +908,60 @@ defmodule AmpsUtil do
     end)
   end
 
+  def check_scripts() do
+    environments = DB.find("environments", %{})
+
+    Enum.each(environments, fn environment ->
+      env = environment["name"]
+      scripts = DB.find("#{env}-scripts", %{})
+
+      case get_mod_path(env) do
+        nil ->
+          :ok
+
+        path ->
+          Enum.each(scripts, fn script ->
+            script_path = Path.join(path, script["name"] <> ".py")
+            File.write(script_path, script["data"])
+          end)
+      end
+    end)
+
+    script = DB.find("scripts", %{})
+
+    case get_mod_path() do
+      nil ->
+        :ok
+
+      path ->
+        Enum.each(scripts, fn scripts ->
+          script_path = Path.join(path, script["name"] <> ".py")
+          File.write(script_path, script["data"])
+        end)
+    end
+  end
+
   def check_util() do
+    environments = DB.find("environments", %{})
+
+    Enum.each(environments, fn environment ->
+      env = environment["name"]
+      utils = DB.find("#{env}-utilscripts", %{})
+
+      case get_mod_path(env) do
+        nil ->
+          :ok
+
+        modpath ->
+          path = Path.join(modpath, "util")
+
+          Enum.each(utils, fn util ->
+            script_path = Path.join(path, util["name"] <> ".py")
+            File.write(script_path, util["data"])
+          end)
+      end
+    end)
+
     utils = DB.find("utilscripts", %{})
 
     case get_mod_path() do
