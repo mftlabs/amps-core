@@ -665,7 +665,6 @@ defmodule AmpsUtil do
       if Enum.member?(
            [
              "config",
-             "utilscripts"
              "packages",
              "admin",
              "environments",
@@ -865,7 +864,12 @@ defmodule AmpsUtil do
   end
 
   def update_util(name, env \\ "") do
-    collection = "utilscripts"
+    collection =
+      if env != "" do
+        "#{env}-utilscripts"
+      else
+        "utilscripts"
+      end
 
     path = get_mod_path(env)
     script = DB.find_one(collection, %{"name" => name})
