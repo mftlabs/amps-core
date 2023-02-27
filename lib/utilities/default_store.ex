@@ -1,4 +1,4 @@
-defmodule AmpsCore.Defaults do
+defmodule Amps.Defaults do
   @moduledoc """
   Provides the structure of ExampleStore records for a minimal default of Mnesiac.
   """
