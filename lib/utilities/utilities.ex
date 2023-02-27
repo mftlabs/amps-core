@@ -871,7 +871,10 @@ defmodule AmpsUtil do
         "utilscripts"
       end
 
-    path = get_mod_path(env)
+    path =
+      get_mod_path(env)
+      |> Path.join("util")
+
     script = DB.find_one(collection, %{"name" => name})
     script_path = Path.join(path, script["name"] <> ".py")
     File.mkdir_p!(Path.dirname(script_path))
