@@ -875,7 +875,7 @@ defmodule AmpsUtil do
 
     parms =
       if node do
-        nodeparms = DB.find_one(nodes, %{"name" => node})
+        nodeparms = DB.find_one("nodes", %{"name" => node})
 
         if nodeparms do
           Map.drop(nodeparms, ["_id", "name", "desc"])
