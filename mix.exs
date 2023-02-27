@@ -14,7 +14,7 @@ defmodule AmpsCore.MixProject do
 
   def application do
     [
-      mod: {AmpsCore.Application, []},
+      # mod: {AmpsCore.Application, []},
       extra_applications: [:logger]
     ]
   end
