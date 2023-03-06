@@ -991,4 +991,41 @@ defmodule AmpsUtil do
       }
     )
   end
+
+  def create_config_consumer(body, env \\ nil, opts \\ %{}) do
+    {stream, consumer} =
+      get_names(
+        body,
+        env
+      )
+
+    policy =
+      if body["policy"] == "by_start_time" do
+        %{
+          deliver_policy: String.to_atom(body["policy"]),
+          opt_start_time: body["start_time"]
+        }
+      else
+        %{
+          deliver_policy: String.to_atom(body["policy"])
+        }
+      end
+
+    opts = Map.merge(policy, opts)
+
+    ack_wait = body["ack_wait"] || 30
+
+    create_consumer(
+      stream,
+      consumer,
+      env_topic(body["topic"], env),
+      Map.merge(
+        %{
+          ack_wait: ack_wait * 1_000_000_000,
+          max_ack_pending: body["subs_count"]
+        },
+        opts
+      )
+    )
+  end
 end
