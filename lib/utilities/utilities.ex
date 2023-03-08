@@ -1095,7 +1095,7 @@ defmodule AmpsUtil do
     index = index(env, "tokens")
     data = Jason.encode!(%{"uid" => user["username"]})
 
-    secret = Phoenix.Token.sign(:amps, "auth", data)
+    secret = Phoenix.Token.sign(Application.get_env(:amps, :secret_key_base), "auth", data)
 
     case DB.find_one(index, %{"username" => user["username"]}) do
       nil ->
@@ -1127,7 +1127,11 @@ defmodule AmpsUtil do
   # end
 
   def verify_token(tokenid, token, env) do
-    {:ok, parms} = Phoenix.Token.verify(:amps, "auth", token, max_age: :infinity)
+    {:ok, parms} =
+      Phoenix.Token.verify(Application.get_env(:amps, :secret_key_base), "auth", token,
+        max_age: :infinity
+      )
+
     %{"uid" => username} = Jason.decode!(parms)
 
     case DB.find_one(index(env, "tokens"), %{"username" => username}) do
