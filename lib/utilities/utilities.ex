@@ -1127,29 +1127,32 @@ defmodule AmpsUtil do
   # end
 
   def verify_token(tokenid, token, env) do
-    {:ok, parms} =
-      Phoenix.Token.verify(Application.get_env(:amps, :secret_key_base), "auth", token,
-        max_age: :infinity
-      )
+    case Phoenix.Token.verify(Application.get_env(:amps, :secret_key_base), "auth", token,
+           max_age: :infinity
+         ) do
+      {:ok, parms} ->
+        %{"uid" => username} = Jason.decode!(parms)
 
-    %{"uid" => username} = Jason.decode!(parms)
+        case DB.find_one(index(env, "tokens"), %{"username" => username}) do
+          nil ->
+            nil
 
-    case DB.find_one(index(env, "tokens"), %{"username" => username}) do
-      nil ->
-        nil
+          secrets ->
+            if secrets[tokenid] == token do
+              case DB.find_one(index(env, "users"), %{"username" => username}) do
+                nil ->
+                  nil
 
-      secrets ->
-        if secrets[tokenid] == token do
-          case DB.find_one(index(env, "users"), %{"username" => username}) do
-            nil ->
+                user ->
+                  user
+              end
+            else
               nil
-
-            user ->
-              user
-          end
-        else
-          nil
+            end
         end
+
+      {:error, _} ->
+        nil
     end
   end
 end
