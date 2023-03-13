@@ -423,8 +423,28 @@ defmodule AmpsUtil do
           File.stream!(msg["fpath"])
         end
       else
-        Logger.debug("Attempting to Stream Message #{msg["msgid"]} from Archive")
-        Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+        if msg["node"] do
+          node = msg["node"] |> String.to_atom()
+
+          exists = :erpc.call(node, File, :exists?, [msg["fpath"]])
+
+          if exists do
+            if chunk_size do
+              :erpc.call(node, File, :stream!, [
+                msg["fpath"],
+                [read_ahead: chunk_size],
+                chunk_size
+              ])
+            else
+              :erpc.call(node, File, :stream!, [msg["fpath"]])
+            end
+          else
+            Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+          end
+        else
+          Logger.debug("Attempting to Stream Message #{msg["msgid"]} from Archive")
+          Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+        end
       end
     end
   end
@@ -457,8 +477,19 @@ defmodule AmpsUtil do
       if File.exists?(msg["fpath"]) do
         File.read!(msg["fpath"])
       else
-        Logger.debug("Attempting to Get Data for Message #{msg["msgid"]} from Archive")
-        Amps.ArchiveConsumer.get(msg, env)
+        if msg["node"] do
+          node = msg["node"] |> String.to_atom()
+          exists = :erpc.call(node, File, :exists?, [msg["fpath"]])
+
+          if exists do
+            :erpc.call(node, File, :read!, [msg["fpath"]])
+          else
+            Amps.ArchiveConsumer.get(msg, env)
+          end
+        else
+          Logger.debug("Attempting to Get Data for Message #{msg["msgid"]} from Archive")
+          Amps.ArchiveConsumer.get(msg, env)
+        end
       end
     end
   end
