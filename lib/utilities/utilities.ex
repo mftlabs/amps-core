@@ -411,42 +411,73 @@ defmodule AmpsUtil do
     end
   end
 
-  def stream(msg, env, chunk_size \\ nil) do
-    if Map.has_key?(msg, "data") do
-      {:ok, stream} = msg["data"] |> StringIO.open()
-      stream |> IO.binstream(:line)
-    else
-      if File.exists?(msg["fpath"]) do
-        if chunk_size do
-          File.stream!(msg["fpath"], [read_ahead: chunk_size], chunk_size)
+  def stream(msg, env, chunk_size \\ nil, fun \\ nil) do
+    stream =
+      if Map.has_key?(msg, "data") do
+        {:ok, stream} = msg["data"] |> StringIO.open()
+        stream = stream |> IO.binstream(:line)
+
+        if fun do
+          fun.(stream)
         else
-          File.stream!(msg["fpath"])
+          stream
         end
       else
-        if msg["node"] do
-          node = msg["node"] |> String.to_atom()
-
-          exists = :erpc.call(node, File, :exists?, [msg["fpath"]])
-
-          if exists do
+        if File.exists?(msg["fpath"]) do
+          stream =
             if chunk_size do
-              :erpc.call(node, File, :stream!, [
-                msg["fpath"],
-                [read_ahead: chunk_size],
-                chunk_size
-              ])
+              File.stream!(msg["fpath"], [read_ahead: chunk_size], chunk_size)
             else
-              :erpc.call(node, File, :stream!, [msg["fpath"]])
+              File.stream!(msg["fpath"])
             end
+
+          if fun do
+            fun.(stream)
           else
-            Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+            stream
           end
         else
-          Logger.debug("Attempting to Stream Message #{msg["msgid"]} from Archive")
-          Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+          if msg["node"] do
+            node = msg["node"] |> String.to_atom()
+
+            exists = :erpc.call(node, File, :exists?, [msg["fpath"]])
+
+            if exists do
+              :erpc.call(node, fn ->
+                stream =
+                  if chunk_size do
+                    File.stream!(msg["fpath"], [read_ahead: chunk_size], chunk_size)
+                  else
+                    File.stream!([msg["fpath"]])
+                  end
+
+                if fun do
+                  fun.(stream)
+                else
+                  stream
+                end
+              end)
+            else
+              stream = Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+
+              if fun do
+                fun.(stream)
+              else
+                stream
+              end
+            end
+          else
+            Logger.debug("Attempting to Stream Message #{msg["msgid"]} from Archive")
+            stream = Amps.ArchiveConsumer.stream(msg, env, chunk_size)
+
+            if fun do
+              fun.(stream)
+            else
+              stream
+            end
+          end
         end
       end
-    end
   end
 
   def local_file(msg, env) do
