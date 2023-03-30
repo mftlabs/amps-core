@@ -235,7 +235,7 @@ defmodule Amps.Users.DB do
     user =
       Map.put(body, "password", hashed)
       |> Map.merge(%{"approved" => false, "rules" => [], "mailboxes" => [], "tokens" => [], "ufa" => %{
-          "stime" => DateTime.utc_now() |> DateTime.to_iso8601()
+          "stime" => DateTime.utc_now() |> DateTime.to_iso8601(),
           "debug" => true,
           "logfile" => "./log",
           "hinterval" => 30,
