@@ -227,21 +227,27 @@ defmodule Amps.Users.DB do
     # Use params to look up user and verify password with `MyApp.Users.User.verify_password/2`
   end
 
-  def create(body) do
+  def create(body, config \\ nil) do
     IO.inspect(body)
     # password = body["password"]
-    # %{password_hash: hashed} = add_hash(password)
+    %{password_hash: hashed} = add_hash(password)
 
     user =
-      body
-      # Map.drop(body, ["password"])
-      # |> Map.drop(["confirmpswd"])
-      |> Map.put("password", nil)
-      |> Map.merge(%{"approved" => false})
+      Map.put(body, "password", hashed)
+      |> Map.merge(%{"approved" => false, "rules" => [], "mailboxes" => [], "tokens" => [], "ufa" => %{
+          "stime" => DateTime.utc_now() |> DateTime.to_iso8601()
+          "debug" => true,
+          "logfile" => "./log",
+          "hinterval" => 30,
+          "cinterval" => 30,
+          "max" => 100,
+      }})
 
-    {:ok, id} = Amps.DB.insert("users", user)
+    {:ok, id} = Amps.DB.insert(Users.index(config), user)
 
-    user = Map.put(user, "id", id) |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+    user_obj = user => Map.drop(["rules", "mailboxes", "tokens", "ufa"])
+
+    user = Map.put(user_obj, "id", id) |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
 
     IO.inspect(user)
 
