@@ -229,7 +229,7 @@ defmodule Amps.Users.DB do
 
   def create(body, config \\ nil) do
     IO.inspect(body)
-    # password = body["password"]
+    password = body["password"]
     %{password_hash: hashed} = add_hash(password)
 
     user =
