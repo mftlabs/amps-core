@@ -234,18 +234,24 @@ defmodule Amps.Users.DB do
 
     user =
       Map.put(body, "password", hashed)
-      |> Map.merge(%{"approved" => false, "rules" => [], "mailboxes" => [], "tokens" => [], "ufa" => %{
+      |> Map.merge(%{
+        "approved" => false,
+        "rules" => [],
+        "mailboxes" => [],
+        "tokens" => [],
+        "ufa" => %{
           "stime" => DateTime.utc_now() |> DateTime.to_iso8601(),
           "debug" => true,
           "logfile" => "./log",
           "hinterval" => 30,
           "cinterval" => 30,
-          "max" => 100,
-      }})
+          "max" => 100
+        }
+      })
 
     {:ok, id} = Amps.DB.insert(Users.index(config), user)
 
-    user_obj = user => Map.drop(["rules", "mailboxes", "tokens", "ufa"])
+    user_obj = user |> Map.drop(["rules", "mailboxes", "tokens", "ufa"])
 
     user = Map.put(user_obj, "id", id) |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
 
