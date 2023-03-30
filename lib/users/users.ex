@@ -228,7 +228,6 @@ defmodule Amps.Users.DB do
   end
 
   def create(body, config \\ nil) do
-    IO.inspect(body)
     password = body["password"]
     %{password_hash: hashed} = add_hash(password)
 
@@ -255,10 +254,7 @@ defmodule Amps.Users.DB do
 
     user = Map.put(user_obj, "id", id) |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
 
-    IO.inspect(user)
-
     user = struct(Amps.Users.User, user)
-    IO.inspect(user)
 
     {:ok, user}
   end
