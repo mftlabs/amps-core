@@ -46,13 +46,13 @@ defmodule Amps.Users do
     # Use params to look up user and verify password with `MyApp.Users.User.verify_password/2`
   end
 
-  def create(body) do
+  def create(body, config \\ nil) do
     case authmethod() do
       "vault" ->
         Amps.Users.Vault.create(body)
 
       _ ->
-        Amps.Users.DB.create(body)
+        Amps.Users.DB.create(body, config)
     end
   end
 
