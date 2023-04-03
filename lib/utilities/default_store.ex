@@ -30,7 +30,7 @@ defmodule Amps.Defaults do
     do: [
       record_name: :default,
       attributes: default() |> default() |> Keyword.keys(),
-      disc_copies: [node()]
+      ram_copies: [node()]
     ]
 
   def put(key, val) do
