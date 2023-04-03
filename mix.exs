@@ -23,7 +23,10 @@ defmodule AmpsCore.MixProject do
     [
       {:jetstream, git: "https://github.com/aram0112/jetstream"},
       {:mnesiac, git: "https://github.com/aram0112/mnesiac"},
-      {:phoenix, "~> 1.6.6"}
+      {:phoenix, "~> 1.6.6"},
+      {:pow, "~> 1.0.25"},
+      {:pow_assent, "~> 0.4.12"},
+      {:argon2_elixir, "~> 3.0"}
     ]
   end
 end
