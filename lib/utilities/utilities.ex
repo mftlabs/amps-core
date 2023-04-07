@@ -937,6 +937,8 @@ defmodule AmpsUtil do
       get_mod_path(env)
       |> Path.join("util")
 
+    File.mkdir_p!(path)
+
     script = DB.find_one(collection, %{"name" => name})
     script_path = Path.join(path, script["name"] <> ".py")
     File.mkdir_p!(Path.dirname(script_path))
@@ -951,17 +953,7 @@ defmodule AmpsUtil do
           %{}
 
         parms ->
-          if node do
-            nodeparms = DB.find_one("nodes", %{"name" => node})
-
-            if nodeparms do
-              Map.drop(nodeparms, ["_id", "name", "desc"])
-            else
-              Map.drop(parms, ["_id", "name"])
-            end
-          else
-            Map.drop(parms, ["_id", "name"])
-          end
+          Map.drop(parms, ["_id", "name"])
       end
 
     Enum.each(parms, fn {key, val} ->
