@@ -1225,7 +1225,7 @@ defmodule AmpsUtil do
   end
 
   def ui_event(index, id, action, env, fun \\ nil) do
-    Task.start_link(fn ->
+    spawn(fn ->
       msg = %{
         "msgid" => get_id(),
         "action" => action,
@@ -1265,7 +1265,7 @@ defmodule AmpsUtil do
   end
 
   def ui_delete_event(index, body, env, fun \\ nil) do
-    Task.start_link(fn ->
+    spawn(fn ->
       msg = %{
         "msgid" => AmpsUtil.get_id(),
         "action" => "delete",
