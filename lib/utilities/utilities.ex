@@ -1209,4 +1209,11 @@ defmodule AmpsUtil do
         nil
     end
   end
+
+  def base_index(collection) do
+    case String.split(collection, "-") do
+      [_prefix, suffix] -> suffix
+      [suffix] -> suffix
+    end
+  end
 end
