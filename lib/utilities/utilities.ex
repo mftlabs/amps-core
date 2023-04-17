@@ -1216,4 +1216,89 @@ defmodule AmpsUtil do
       [suffix] -> {"", suffix}
     end
   end
+
+  def base_index(collection) do
+    case String.split(collection, "-") do
+      [_prefix, suffix] -> suffix
+      [suffix] -> suffix
+    end
+  end
+
+  def ui_event(index, id, action, env, fun \\ nil) do
+    Task.start_link(fn ->
+      msg = %{
+        "msgid" => get_id(),
+        "action" => action,
+        "service" => "UI Actions"
+      }
+
+      {msg, sid} = AmpsEvents.start_session(msg, %{"service" => "UI Actions"}, env)
+
+      obj = Amps.DB.find_by_id(index, id)
+
+      msg =
+        if fun do
+          fun.(msg, obj, env)
+        else
+          msg
+        end
+
+      msg =
+        Map.put(
+          msg,
+          "data",
+          Jason.encode!(obj |> AmpsUtil.filter())
+          |> Jason.Formatter.pretty_print()
+        )
+
+      AmpsEvents.send(
+        msg,
+        %{
+          "output" => "amps.objects.#{base_index(index)}.#{action}"
+        },
+        %{},
+        env
+      )
+
+      AmpsEvents.end_session(sid, env)
+    end)
+  end
+
+  def ui_delete_event(index, body, env, fun \\ nil) do
+    Task.start_link(fn ->
+      msg = %{
+        "msgid" => AmpsUtil.get_id(),
+        "action" => "delete",
+        "service" => "UI Actions"
+      }
+
+      {msg, sid} = AmpsEvents.start_session(msg, %{"service" => "UI Actions"}, env)
+
+      msg =
+        if fun do
+          fun.(msg, body, env)
+        else
+          msg
+        end
+
+      msg =
+        Map.put(
+          msg,
+          "data",
+          Jason.encode!(body |> AmpsUtil.filter())
+          |> Jason.Formatter.pretty_print()
+        )
+
+      AmpsEvents.send(
+        msg,
+        %{
+          "output" => "amps.objects.#{base_index(index)}.delete"
+        },
+        %{},
+        env
+      )
+
+      AmpsEvents.end_session(sid, env)
+    end)
+  end
 end
