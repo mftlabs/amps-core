@@ -1212,8 +1212,8 @@ defmodule AmpsUtil do
 
   def env_base(collection) do
     case String.split(collection, "-") do
-      [_prefix, suffix] -> suffix
-      [suffix] -> suffix
+      [prefix, suffix] -> {prefix, suffix}
+      [suffix] -> {"", suffix}
     end
   end
 end
