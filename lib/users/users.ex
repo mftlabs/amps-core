@@ -10,6 +10,8 @@ end
 
 defmodule Amps.Users do
   import Pow.Context
+  alias Pow.{Config, Store.CredentialsCache}
+  alias PowPersistentSession.Store.PersistentSessionCache
   require Logger
 
   defp authmethod() do
@@ -17,12 +19,16 @@ defmodule Amps.Users do
   end
 
   def index(config) do
-    case Keyword.get(config, :env) do
-      "" ->
-        "users"
+    if config do
+      case Keyword.get(config, :env) do
+        "" ->
+          "users"
 
-      other ->
-        other <> "-users"
+        other ->
+          other <> "-users"
+      end
+    else
+      "users"
     end
   end
 
@@ -61,9 +67,14 @@ defmodule Amps.Users do
     {:error, :not_implemented}
   end
 
-  def delete(_user) do
-    IO.puts("delete")
-    {:error, :not_implemented}
+  def delete(body, config \\ nil) do
+    case authmethod() do
+      "vault" ->
+        Amps.Users.Vault.create(body)
+
+      _ ->
+        Amps.Users.DB.create(body, config)
+    end
   end
 
   def get_by(clauses, config \\ nil) do
@@ -116,6 +127,154 @@ defmodule Amps.Users do
       user = Map.put(user, :id, id)
       struct(Amps.Users.User, user)
     end
+  end
+
+  def custom_auth(params, env \\ "") do
+    config = config(env)
+
+    # The store caches will use their default `:ttl` settting. To change the
+    # `:ttl`, `Keyword.put(store_config, :ttl, :timer.minutes(10))` can be
+    # passed in as the first argument instead of `store_config`.
+
+    authenticate(params, config)
+    |> case do
+      nil ->
+        {:error, "Unable to Authenticate"}
+
+      user ->
+        create(user, config)
+    end
+  end
+
+  def create_session(user, env \\ "") do
+    config = config(env)
+
+    store_config = store_config(config)
+    access_token = Pow.UUID.generate()
+    renewal_token = Pow.UUID.generate()
+
+    conn =
+      %Plug.Conn{
+        secret_key_base: Application.get_env(:amps, :secret_key_base)
+      }
+      |> Plug.Conn.put_private(:pow_config, config)
+
+    access = Pow.Plug.sign_token(conn, "user_auth", access_token, config)
+    renew = Pow.Plug.sign_token(conn, "user_auth", renewal_token, config)
+
+    CredentialsCache.put(
+      store_config,
+      access_token,
+      {user, [renewal_token: renewal_token]}
+    )
+
+    PersistentSessionCache.put(
+      store_config,
+      renewal_token,
+      {user, [access_token: access_token]}
+    )
+
+    %{
+      "success" => true,
+      "access_token" => access,
+      "renewal_token" => renew,
+      "user" => convert_to_binary_map(user)
+    }
+  end
+
+  defp store_config(config) do
+    backend = Config.get(config, :cache_store_backend, Pow.Store.Backend.EtsCache)
+
+    [backend: backend]
+  end
+
+  def renew_session(renewal_token, env \\ "") do
+    config = config(env)
+
+    store_config = store_config(config)
+
+    conn =
+      %Plug.Conn{
+        secret_key_base: Application.get_env(:amps, :secret_key_base)
+      }
+      |> Plug.Conn.put_private(:pow_config, config)
+
+    with {:ok, token} <- Pow.Plug.verify_token(conn, "user_auth", renewal_token, config),
+         {user, metadata} <-
+           Pow.Store.Base.get(
+             store_config,
+             PersistentSessionCache.backend_config(store_config),
+             token
+           ),
+         user <- Amps.Users.get_by(%{"_id" => user.id}, config) do
+      CredentialsCache.delete(store_config, metadata[:access_token])
+      PersistentSessionCache.delete(store_config, token)
+
+      create_session(user, config)
+    else
+      _ ->
+        %{"success" => false, "error" => "Invalid Token"}
+    end
+  end
+
+  def verify_session(access_token, env \\ "") do
+    config = config(env)
+
+    conn =
+      %Plug.Conn{
+        secret_key_base: Application.get_env(:amps, :secret_key_base)
+      }
+      |> Plug.Conn.put_private(:pow_config, config)
+
+    with {:ok, token} <- Pow.Plug.verify_token(conn, "user_auth", access_token, config),
+         {user, _metadata} <- CredentialsCache.get(store_config(config), token) do
+      %{"success" => true}
+    else
+      _any -> %{"success" => false}
+    end
+  end
+
+  def delete_session(access_token, env \\ "") do
+    config = config(env)
+    store_config = store_config(config)
+
+    conn =
+      %Plug.Conn{
+        secret_key_base: Application.get_env(:amps, :secret_key_base)
+      }
+      |> Plug.Conn.put_private(:pow_config, config)
+
+    with {:ok, token} = Pow.Plug.verify_token(conn, "user_auth", access_token, config),
+         {_user, metadata} <- CredentialsCache.get(store_config, token) do
+      PersistentSessionCache.delete(store_config, metadata[:renewal_token])
+      CredentialsCache.delete(store_config, token)
+    else
+      _any -> :ok
+    end
+
+    %{"success" => true}
+  end
+
+  def convert_to_binary_map(user) do
+    user
+    |> Map.from_struct()
+    |> Map.drop([:__meta__])
+    |> Enum.reduce(%{}, fn {k, v}, acc ->
+      if v do
+        Map.put(acc, Atom.to_string(k), v)
+      else
+        acc
+      end
+    end)
+  end
+
+  def config(env) do
+    [
+      mod: AmpsPortal.APIAuthPlug,
+      plug: AmpsPortal.APIAuthPlug,
+      otp_app: :amps_portal
+    ]
+    |> Keyword.put(:env, env)
   end
 end
 
@@ -208,7 +367,6 @@ defmodule Amps.Users.DB do
   import Argon2
 
   def authenticate(body, config \\ nil) do
-    IO.inspect(config)
     user = Amps.DB.find_one(Users.index(config), %{"username" => body["username"]})
 
     case check_pass(user, body["password"], hash_key: "password") do
@@ -220,7 +378,7 @@ defmodule Amps.Users.DB do
         end
 
       {:error, reason} ->
-        IO.inspect(reason)
+        # IO.inspect(reason)
         nil
     end
 
@@ -228,35 +386,20 @@ defmodule Amps.Users.DB do
   end
 
   def create(body, config \\ nil) do
-    password = body["password"]
-    %{password_hash: hashed} = add_hash(password)
+    env =
+      if config do
+        config[:env]
+      else
+        ""
+      end
 
-    user =
-      Map.put(body, "password", hashed)
-      |> Map.merge(%{
-        "approved" => false,
-        "rules" => [],
-        "mailboxes" => [],
-        "tokens" => [],
-        "ufa" => %{
-          "stime" => DateTime.utc_now() |> DateTime.to_iso8601(),
-          "debug" => true,
-          "logfile" => "./log",
-          "hinterval" => 30,
-          "cinterval" => 30,
-          "max" => 100
-        }
-      })
+    create = Amps.Users.User.create(body, env)
 
-    {:ok, id} = Amps.DB.insert(Users.index(config), user)
-
-    user_obj = user |> Map.drop(["rules", "mailboxes", "tokens", "ufa"])
-
-    user = Map.put(user_obj, "id", id) |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
-
-    user = struct(Amps.Users.User, user)
-
-    {:ok, user}
+    if create["success"] do
+      {:ok, create["user"]}
+    else
+      {:error, create["error"]}
+    end
   end
 
   def update(_user, _params) do
@@ -264,25 +407,75 @@ defmodule Amps.Users.DB do
     {:error, :not_implemented}
   end
 
-  def delete(_user) do
-    IO.puts("delete")
-    {:error, :not_implemented}
+  def delete(id, config \\ nil) do
+    env =
+      if config do
+        config[:env]
+      else
+        ""
+      end
+
+    delete = Amps.Users.User.delete(id, Users.index(config))
+
+    if delete["success"] do
+      {:ok, delete}
+    else
+      {:error, delete["error"]}
+    end
   end
 end
 
 defmodule Amps.Users.User do
-  @derive Jason.Encoder
-  defstruct firstname: nil,
-            phone: nil,
-            email: nil,
-            lastname: nil,
-            username: nil,
-            password: nil,
-            role: nil,
-            id: nil
-
-  require Pow.Ecto.Schema
+  @derive {Jason.Encoder, except: [:__meta__, :__struct__]}
+  use Ecto.Schema
+  use Pow.Ecto.Schema
   require PowAssent.Ecto.Schema
+  import Ecto.Changeset
+  import Argon2
+
+  schema "users" do
+    field(:password, :string, redact: true)
+    field(:firstname, :string)
+    field(:phone, :string)
+    field(:email, :string)
+    field(:lastname, :string)
+    field(:username, :string)
+    field(:approved, :boolean, default: false)
+    field(:group, :string)
+    field(:mailboxes, {:array, :map}, default: [])
+    field(:tokens, {:array, :map}, default: [])
+    field(:rules, {:array, :map}, default: [])
+
+    field(:ufa, :map,
+      default: %{
+        stime: DateTime.utc_now() |> DateTime.to_iso8601(),
+        debug: true,
+        logfile: "./log",
+        hinterval: 30,
+        cinterval: 30,
+        max: 100
+      }
+    )
+  end
+
+  # firstname: nil,
+  #         phone: nil,
+  #         email: nil,
+  #         lastname: nil,
+  #         username: nil,
+  #         password: nil,
+  #         role: nil,
+  #         id: nil,
+  #         approved: nil,
+  #         group: nil,
+  #         mailboxes: [],
+  #         rules: [],
+  #         tokens: [],
+  #         ufa: %{}
+
+  # def __changeset__() do
+  #   %Amps.Users.User{}
+  # end
 
   def reset_password_changeset(user, attrs) do
     IO.inspect(user)
@@ -297,12 +490,151 @@ defmodule Amps.Users.User do
     end
   end
 
+  def create(params \\ %{}, env \\ "") do
+    user =
+      %Amps.Users.User{}
+      |> cast(params, [
+        :approved,
+        :email,
+        :firstname,
+        :group,
+        :id,
+        :lastname,
+        :mailboxes,
+        :password,
+        :phone,
+        :rules,
+        :tokens,
+        :ufa,
+        :username
+      ])
+      |> validate_required([:username, :email, :password])
+
+    if user.valid? do
+      user = password_hash_changeset(user) |> apply_changes()
+
+      username = user.username
+
+      collection = AmpsUtil.index(env, "users")
+
+      map =
+        user
+        |> Map.from_struct()
+        |> Map.drop([:__meta__])
+        |> Enum.reduce(%{}, fn {k, v}, acc ->
+          if v do
+            Map.put(acc, Atom.to_string(k), v)
+          else
+            acc
+          end
+        end)
+
+      case Amps.DB.find_one(collection, %{"username" => username}) do
+        nil ->
+          map
+
+          {:ok, id} = Amps.DB.insert(collection, map)
+          %{"success" => true, "id" => id, "user" => Amps.Users.get_by(%{"_id" => id})}
+
+        _found ->
+          %{"success" => false, "error" => "Duplicate Username"}
+      end
+    else
+      errors =
+        user.errors
+        |> Enum.map(fn {field, {msg, _}} ->
+          "#{field} #{msg}"
+        end)
+
+      %{"success" => false, "error" => errors}
+    end
+  end
+
+  def update(id, params \\ %{}, env \\ "") do
+    index = AmpsUtil.index(env, "users")
+
+    user =
+      Amps.Users.get_by(%{"_id" => id}, env: env)
+      |> cast(params, [
+        :approved,
+        :email,
+        :firstname,
+        :group,
+        :lastname,
+        :mailboxes,
+        :password,
+        :phone,
+        :rules,
+        :tokens,
+        :ufa
+      ])
+      |> validate_required([:username, :email, :password])
+
+    if user.valid? do
+      user = password_hash_changeset(user) |> apply_changes()
+      IO.inspect(user)
+
+      map =
+        user
+        |> Map.from_struct()
+        |> Map.drop([:__meta__])
+        |> Enum.reduce(%{}, fn {k, v}, acc ->
+          if v do
+            Map.put(acc, Atom.to_string(k), v)
+          else
+            acc
+          end
+        end)
+
+      case Amps.DB.update(index, map, id) do
+        :ok ->
+          %{"success" => true, "id" => id, "user" => Amps.Users.get_by(%{"_id" => id}, env: env)}
+
+        error ->
+          %{"success" => false, "error" => error}
+      end
+    else
+      errors =
+        user.errors
+        |> Enum.map(fn {field, {msg, _}} ->
+          "#{field} #{msg}"
+        end)
+
+      %{"success" => false, "error" => errors}
+    end
+  end
+
+  def delete(id, env \\ "") do
+    index = AmpsUtil.index(env, "users")
+    user = Amps.DB.find_one(index, %{"_id" => id})
+
+    rules = user["rules"] || []
+
+    Enum.each(rules, fn rule ->
+      if rule["type"] == "download" do
+        AmpsUtil.agent_rule_deletion(user, rule, env)
+      end
+    end)
+
+    Amps.DB.delete_by_id(index, id)
+    %{"success" => true}
+  end
+
+  def password_hash_changeset(user) do
+    if Map.get(user.changes, :password) do
+      %{password_hash: hashed} = add_hash(user.changes.password)
+      put_change(user, :password, hashed)
+    else
+      user
+    end
+  end
+
   def changeset(user, _params) do
     user
   end
 
-  def verify_password(_user, _password) do
-    {:error, :not_implemented}
+  def verify_password(user, password) do
+    verify_pass(password, user.password)
   end
 
   # def user_identity_changeset(user_or_changeset, user_identity, attrs, user_id_attrs) do
