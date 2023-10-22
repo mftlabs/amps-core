@@ -1083,6 +1083,60 @@ defmodule AmpsUtil do
     )
   end
 
+  def update_config_consumer(old, body, env \\ nil, opts \\ %{}) do
+    {stream, consumer} =
+      get_names(
+        old,
+        env
+      )
+
+    {:ok, info} = Jetstream.API.Consumer.info(:gnat, stream, consumer)
+    seq = info.delivered.stream_seq
+    delete_config_consumer(old, env)
+
+    policy =
+      if old["policy"] != body["policy"] do
+        if body["policy"] == "by_start_time" do
+          %{
+            deliver_policy: String.to_atom(body["policy"]),
+            opt_start_time: body["start_time"]
+          }
+        else
+          %{
+            deliver_policy: String.to_atom(body["policy"])
+          }
+        end
+      else
+        %{
+          deliver_policy: :by_start_sequence,
+          opt_start_seq: seq
+        }
+      end
+
+    opts = Map.merge(policy, opts)
+
+    ack_wait = body["ack_wait"] || 30
+
+    {stream, consumer} =
+      get_names(
+        body,
+        env
+      )
+
+    create_consumer(
+      stream,
+      consumer,
+      env_topic(body["topic"], env),
+      Map.merge(
+        %{
+          ack_wait: ack_wait * 1_000_000_000,
+          max_ack_pending: body["subs_count"]
+        },
+        opts
+      )
+    )
+  end
+
   def delete_config_consumer(body, env \\ nil) do
     {stream, consumer} = AmpsUtil.get_names(body, env)
 
