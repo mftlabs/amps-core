@@ -1283,10 +1283,10 @@ defmodule AmpsUtil do
       msg = %{
         "msgid" => get_id(),
         "action" => action,
-        "service" => "UI Actions"
+        "service" => "Object Actions"
       }
 
-      {msg, sid} = AmpsEvents.start_session(msg, %{"service" => "UI Actions"}, env)
+      {msg, sid} = AmpsEvents.start_session(msg, %{"service" => "Object Actions"}, env)
 
       obj = Amps.DB.find_by_id(index, id)
 
