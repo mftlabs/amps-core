@@ -749,6 +749,8 @@ defmodule AmpsUtil do
   end
 
   def delete_env(env) do
+    Amps.EnvSupervisor.stop_child(env)
+
     {:ok, %{streams: streams}} = Jetstream.API.Stream.list(:gnat)
 
     Enum.each(streams, fn stream ->
@@ -762,8 +764,6 @@ defmodule AmpsUtil do
     # Amps.VaultDatabase.delete_env(env)
 
     File.rm_rf(AmpsUtil.get_mod_path(env))
-
-    Amps.EnvSupervisor.stop_child(env)
 
     Logger.info("Deleted environment #{env}")
   end
